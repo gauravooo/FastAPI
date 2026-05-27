@@ -2,7 +2,7 @@ from fastapi import FastAPI , Path , HTTPException , Query
 import json
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, computed_field
-from typing import Literal, Annotated
+from typing import Literal, Annotated , Optional
 
 app = FastAPI()
 
@@ -91,3 +91,39 @@ def create_patient(patient: Patient):
     data[patient.id] = patient.model_dump(exclude={"id"})
     save_data(data)
     return JSONResponse(content={"message": "Patient created successfully"}, status_code=201)
+
+
+class UpdatePatient(BaseModel):
+    name: Annotated[Optional[str], Field(None)]
+    city: Annotated[Optional[str], Field(None)]
+    age: Annotated[Optional[int], Field(None,gt=0, lt=120)]
+    gender: Annotated[Optional[Literal["Male", "Female", "Other"]], Field(None)]
+    weight: Annotated[Optional[float], Field(None,gt=0)]
+    height: Annotated[Optional[float], Field(None,gt=0)]
+
+@app.put("/update/{patient_id}")
+def update_patient(patient_id: str, patient_update : UpdatePatient):
+    data = load_data()
+    if patient_id not in data:
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    existing_patient = data[patient_id]
+    update_data_info = patient_update.model_dump(exclude_unset=True)
+    for key, value in update_data_info.items():
+        existing_patient[key] = value
+
+    existing_patient["id"] = patient_id
+    patient_pydantic_obj = Patient(**existing_patient)
+    existing_patient = patient_pydantic_obj.model_dump(exclude="id")
+    data[patient_id] = existing_patient
+    save_data(data)
+    return JSONResponse(content={"message": "Patient updated successfully"}, status_code=200)
+
+@app.delete("/delete/{patient_id}")
+def delete_patient(patient_id: str):
+    data = load_data()
+    if patient_id not in data:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    del data[patient_id]
+    save_data(data)
+    return JSONResponse(content={"message": "Patient deleted successfully"}, status_code=200)
